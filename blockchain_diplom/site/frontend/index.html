@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZK Fact Verification</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Anonymous Fact Verification</h1>
+        <p class="subtitle">Zero-Knowledge proof system — verify facts without revealing personal data</p>
+
+        <div class="panel verifier-panel">
+            <h2>Verifier — Lookup Verified Fact</h2>
+            <p>Enter subject_tag received from Holder to check if a verified fact exists on-chain.</p>
+            <form id="lookupForm">
+                <div class="form-group">
+                    <label>Verifier ID Hash</label>
+                    <input type="text" id="verifierIdHash" placeholder="0x..." required>
+                </div>
+                <div class="form-group">
+                    <label>Subject Tag</label>
+                    <input type="text" id="subjectTag" placeholder="0x..." required>
+                </div>
+                <div class="form-group">
+                    <label>Fact Type Hash</label>
+                    <input type="text" id="factTypeHash" placeholder="0x..." required>
+                </div>
+                <button type="submit" id="lookupBtn">Lookup Fact On-Chain</button>
+            </form>
+            <div id="result"></div>
+        </div>
+
+        <div class="panel status-panel">
+            <h2>System Status</h2>
+            <div id="status">Loading...</div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

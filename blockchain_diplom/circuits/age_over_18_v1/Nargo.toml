@@ -1,0 +1,8 @@
+[package]
+name = "age_over_18_v1"
+type = "bin"
+authors = [""]
+
+[dependencies]
+poseidon = { git = "https://github.com/noir-lang/poseidon", tag = "v0.2.6" }
+eddsa = { git = "https://github.com/noir-lang/eddsa", tag = "v0.1.3" }

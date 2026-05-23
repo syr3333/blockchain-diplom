@@ -1,0 +1,37 @@
+{
+  "chain": {
+    "chain_id": 31337,
+    "fact_registry_address": "0x0000000000000000000000000000000000000000"
+  },
+  "circuit_id": "age_over_18_v1",
+  "expires_at": "2027-03-30T10:05:00Z",
+  "fact_type": "age_over_18",
+  "fact_type_hash": "0x02cee4c0520193097ae2ed7cb1b1dad60aff4aeab979c2a1ef513d9f43333332",
+  "issued_at": "2026-03-30T10:00:00Z",
+  "issuer_policy": {
+    "issuers": [
+      {
+        "issuer_id": "did:web:gov.example.ru",
+        "leaf": "0x08def18b56619ac02615390a136336e6eb9e41a2ab98d76ac66306431e78ddf5",
+        "pubkey_hash": "0x08def18b56619ac02615390a136336e6eb9e41a2ab98d76ac66306431e78ddf5"
+      }
+    ],
+    "root": "0x2cd9026bfd711f07ad4189afb81eb728f1590bf2ea3c07dea2e9c668f77da002",
+    "snapshot_block": 0
+  },
+  "predicate": {
+    "cutoff_date_days": 13879,
+    "type": "birth_date_lte_cutoff"
+  },
+  "purpose": "age_check",
+  "request_id": "urn:uuid:req-test-001",
+  "response": {
+    "callback_url": "https://shop.example.com/api/zk/notify",
+    "mode": "https_post"
+  },
+  "schema_hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+  "schema_id": "vc.age.v1",
+  "verifier_id": "did:web:shop.example.com",
+  "verifier_id_hash": "0x2222222222222222222222222222222222222222222222222222222222222222",
+  "version": "1.0"
+}

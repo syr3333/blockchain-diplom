@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Build artifacts
+blockchain/artifacts/
+blockchain/cache/
+blockchain/typechain-types/
+blockchain/deployment.json
+
+# Noir build artifacts
+circuits/*/target/
+circuits/*/target_evm/
+circuits/*/proofs/
+circuits/*/out/
+circuits/*/Prover.toml
+
+# Go binaries
+cli/zk-verify
+cli/cmd/main
+cli/*.exe
+site/backend/verifier-server
+
+# Environment
+.env
+*.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Proof artifacts (generated at runtime)
+proof_package.json
+onchain_submit.json
+prover_input.json
+
+# Generated documents (rebuild with python3 generate_*.py)
+*.pdf
+*.docx
+generate_learning_pdf.py
+generate_thesis.py
+
+# Logs
+*.log
+
+# Docker volumes
+deployment-data/
+
+# Python cache
+__pycache__/
+*.pyc

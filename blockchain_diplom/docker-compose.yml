@@ -1,0 +1,75 @@
+services:
+  hardhat:
+    build: ./blockchain
+    ports:
+      - "8545:8545"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "-X", "POST", "-H", "Content-Type: application/json", "-d", "{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}", "http://localhost:8545"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  deployer:
+    build: ./blockchain
+    depends_on:
+      hardhat:
+        condition: service_healthy
+    volumes:
+      - deployment-data:/app/deployment
+      - ./circuits/age_over_18_v1/target_evm:/app/proof_data:ro
+    environment:
+      - HARDHAT_RPC_URL=http://hardhat:8545
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        mkdir -p circuits/age_over_18_v1/target_evm/proof
+        if [ -d /app/proof_data/proof ]; then
+          cp -r /app/proof_data/proof/* circuits/age_over_18_v1/target_evm/proof/ 2>/dev/null || true
+        fi
+
+        echo "=== Deploying contracts ==="
+        npx hardhat run scripts/deploy-and-seed.ts --network localhost
+
+        cp deployment.json /app/deployment/deployment.json
+
+        FACT_ADDR=$$(node -e "const d=require('./deployment.json'); if(!d.contracts||!d.contracts.factRegistry){process.exit(1)} console.log(d.contracts.factRegistry)")
+
+        echo "FACT_REGISTRY_ADDRESS=$$FACT_ADDR" > /app/deployment/.env
+        echo "VERIFIER_ID_HASH=0x2222222222222222222222222222222222222222222222222222222222222222" >> /app/deployment/.env
+        echo "=== Deploy complete ==="
+        cat /app/deployment/.env
+
+  verifier:
+    build: ./site
+    ports:
+      - "8080:8080"
+    depends_on:
+      deployer:
+        condition: service_completed_successfully
+    volumes:
+      - deployment-data:/deployment:ro
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        if [ ! -f /deployment/.env ]; then
+          echo "ERROR: /deployment/.env not found. Deployer may have failed."
+          exit 1
+        fi
+        set -a && . /deployment/.env && set +a
+        export ETHEREUM_RPC_URL=http://hardhat:8545
+        export FRONTEND_DIR=./frontend
+        export PORT=8080
+        echo "Verifier starting: FACT_REGISTRY=$$FACT_REGISTRY_ADDRESS"
+        exec ./verifier-server
+
+volumes:
+  deployment-data:

@@ -1,0 +1,20 @@
+{
+  "name": "blockchain",
+  "version": "1.0.0",
+  "description": "Anonymous fact verification - Solidity contracts",
+  "scripts": {
+    "compile": "hardhat compile",
+    "node": "hardhat node",
+    "deploy": "hardhat run scripts/deploy.ts --network localhost",
+    "deploy:seed": "hardhat run scripts/deploy-and-seed.ts --network localhost",
+    "e2e": "hardhat run scripts/test-e2e.ts --network localhost",
+    "test": "hardhat test"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.0",
+    "typescript": "~5.8.0",
+    "ts-node": "^10.9.2",
+    "@types/node": "^22.19.1"
+  }
+}

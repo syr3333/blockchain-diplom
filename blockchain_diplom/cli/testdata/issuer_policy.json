@@ -1,0 +1,14 @@
+{
+  "depth": 16,
+  "hash_alg": "poseidon",
+  "issuers": [
+    {
+      "issuer_id": "did:web:gov.example.ru",
+      "leaf": "0x08def18b56619ac02615390a136336e6eb9e41a2ab98d76ac66306431e78ddf5",
+      "pubkey_hash": "0x08def18b56619ac02615390a136336e6eb9e41a2ab98d76ac66306431e78ddf5"
+    }
+  ],
+  "policy_id": "age-ru-2026-03",
+  "root": "0x2cd9026bfd711f07ad4189afb81eb728f1590bf2ea3c07dea2e9c668f77da002",
+  "version": "1.0"
+}
