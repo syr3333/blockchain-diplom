@@ -30,7 +30,7 @@ async function main() {
   }
   console.log(`Proof size: ${proofBytes.length} bytes`);
   console.log(`Public inputs count: ${publicInputs.length}`);
-  assert(publicInputs.length === 4, `expected 4 public inputs, got ${publicInputs.length}`);
+  assert(publicInputs.length === 5, `expected 5 public inputs, got ${publicInputs.length}`);
 
   // 1. Test NoirVerifier.verify directly
   const verifierAddr = deployment.contracts.noirVerifier;
@@ -47,11 +47,18 @@ async function main() {
   const factRegistry = await ethers.getContractAt("FactRegistry", factRegistryAddr);
 
   // Use the public inputs as typed args.
-  // The circuit public inputs order: verifier_id_hash, fact_type_hash, subject_tag, cutoff_date_days
+  // The circuit public inputs order:
+  // verifier_id_hash, fact_type_hash, issuer_policy_root, subject_tag, cutoff_date_days
   const offset = 0;
   const verifierIdHash = publicInputs[offset + 0];
   const factTypeHash = publicInputs[offset + 1];
-  const subjectTag = publicInputs[offset + 2];
+  const issuerPolicyRoot = publicInputs[offset + 2];
+  const subjectTag = publicInputs[offset + 3];
+
+  const trustTx = await factRegistry.setIssuerPolicyRoot(issuerPolicyRoot, true);
+  const trustReceipt = await trustTx.wait();
+  assert(trustReceipt?.status === 1, "policy root trust transaction failed");
+  console.log("Trusted issuer policy root:", issuerPolicyRoot);
 
   const existing = await factRegistry.getFact(verifierIdHash, subjectTag, factTypeHash);
   if (existing.exists) {
@@ -63,6 +70,7 @@ async function main() {
       verifierIdHash,
       subjectTag,
       factTypeHash,
+      issuerPolicyRoot,
     );
     const receipt = await tx.wait();
     assert(receipt?.status === 1, "submit transaction failed");
@@ -91,6 +99,7 @@ async function main() {
       verifierIdHash,
       subjectTag,
       factTypeHash,
+      issuerPolicyRoot,
     );
     throw new Error("duplicate submit unexpectedly succeeded");
   } catch (e: any) {

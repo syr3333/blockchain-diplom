@@ -65,20 +65,29 @@ async function main() {
     for (let i = 0; i < piRaw.length; i += 32) {
       publicInputs.push("0x" + Buffer.from(piRaw.subarray(i, i + 32)).toString("hex"));
     }
-    if (publicInputs.length !== 4) {
-      throw new Error(`expected 4 public inputs, got ${publicInputs.length}`);
+    if (publicInputs.length !== 5) {
+      throw new Error(`expected 5 public inputs, got ${publicInputs.length}`);
     }
 
-    const offset = publicInputs.length - 4;
+    const offset = publicInputs.length - 5;
     const verifierIdHash = publicInputs[offset + 0];
     const factTypeHash = publicInputs[offset + 1];
-    const subjectTag = publicInputs[offset + 2];
+    const issuerPolicyRoot = publicInputs[offset + 2];
+    const subjectTag = publicInputs[offset + 3];
 
     const factRegistry = await ethers.getContractAt("FactRegistry", factRegAddr);
 
+    const policyTx = await factRegistry.setIssuerPolicyRoot(issuerPolicyRoot, true);
+    const policyReceipt = await policyTx.wait();
+    if (policyReceipt?.status !== 1) {
+      throw new Error("policy root seed transaction failed");
+    }
+    console.log("Trusted policy root seeded:", issuerPolicyRoot);
+    console.log("setIssuerPolicyRoot gas:", policyReceipt?.gasUsed?.toString());
+
     const tx = await factRegistry.submitVerifiedFact(
       proofBytes, publicInputs,
-      verifierIdHash, subjectTag, factTypeHash,
+      verifierIdHash, subjectTag, factTypeHash, issuerPolicyRoot,
     );
     const receipt = await tx.wait();
     if (receipt?.status !== 1) {
@@ -89,6 +98,7 @@ async function main() {
     console.log("Subject tag:", subjectTag);
     console.log("Fact type hash:", factTypeHash);
     console.log("Verifier ID hash:", verifierIdHash);
+    console.log("Issuer policy root:", issuerPolicyRoot);
   } else {
     console.log("\nNo proof files found — skipping seed. Generate with:");
     console.log("  cd circuits/age_over_18_v1 && nargo execute && bb prove -t evm ...");

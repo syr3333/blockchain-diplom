@@ -16,9 +16,8 @@ use eddsa::eddsa_verify;
 
 // Merkle tree depth for issuer policy
 global TREE_DEPTH: u32 = 16;
-// Public-input minimization: the trusted issuer policy and schema are fixed by
-// this circuit version, so they are not revealed as proof public inputs.
-global TRUSTED_ISSUER_POLICY_ROOT: Field = 15601257692961000918568678126040593446795323607103168265624674479041462916588;
+// Public-input minimization: schema is fixed by this circuit version, so it is
+// not revealed as a proof public input.
 global AGE_SCHEMA_HASH: Field = 7719472615821079694904732333912527190217998977709370935963838933860875309329;
 
 struct CredentialWitness {
@@ -45,6 +44,7 @@ struct VerificationContext {
     // Public verifier/request context that the contract stores or checks.
     verifier_id_hash: Field,
     fact_type_hash: Field,
+    issuer_policy_root: Field,
     subject_tag: Field,
     cutoff_date_days: Field,
 }
@@ -89,7 +89,7 @@ fn main(
         issuer.issuer_policy_path,
         issuer.issuer_policy_path_indices,
     );
-    assert(computed_root == TRUSTED_ISSUER_POLICY_ROOT, "Issuer not in policy tree");
+    assert(computed_root == context.issuer_policy_root, "Issuer not in policy tree");
 
     // 4. subject_tag = Poseidon2(holder_secret, verifier_id_hash)
     let computed_subject_tag = hash_2([credential.holder_secret, context.verifier_id_hash]);

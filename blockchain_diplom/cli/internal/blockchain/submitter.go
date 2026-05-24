@@ -25,11 +25,12 @@ type SubmitConfig struct {
 }
 
 type SubmitParams struct {
-	Proof          []byte
-	PublicInputs   [][32]byte
-	VerifierIDHash [32]byte
-	SubjectTag     [32]byte
-	FactTypeHash   [32]byte
+	Proof            []byte
+	PublicInputs     [][32]byte
+	VerifierIDHash   [32]byte
+	SubjectTag       [32]byte
+	FactTypeHash     [32]byte
+	IssuerPolicyRoot [32]byte
 }
 
 // SubmitFact sends the proof to FactRegistry.submitVerifiedFact
@@ -69,6 +70,7 @@ func SubmitFact(cfg SubmitConfig, params SubmitParams) (string, error) {
 		params.VerifierIDHash,
 		params.SubjectTag,
 		params.FactTypeHash,
+		params.IssuerPolicyRoot,
 	)
 	if err != nil {
 		return "", fmt.Errorf("ABI encode: %w", err)
@@ -138,7 +140,8 @@ func init() {
 			{"name": "publicInputs", "type": "bytes32[]"},
 			{"name": "verifierIdHash", "type": "bytes32"},
 			{"name": "subjectTag", "type": "bytes32"},
-			{"name": "factTypeHash", "type": "bytes32"}
+			{"name": "factTypeHash", "type": "bytes32"},
+			{"name": "issuerPolicyRoot", "type": "bytes32"}
 		],
 		"name": "submitVerifiedFact",
 		"outputs": [],

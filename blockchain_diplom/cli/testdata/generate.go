@@ -382,11 +382,13 @@ signature_s = "%s"
 [context]
 verifier_id_hash = "%s"
 fact_type_hash = "%s"
+issuer_policy_root = "%s"
 subject_tag = "%s"
 cutoff_date_days = "%d"
 `,
 		verifierIDHash.String(),
 		factTypeHash.String(),
+		multiRoot.String(),
 		subjectTag.String(),
 		cutoffDateDays,
 	)
