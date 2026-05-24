@@ -13,14 +13,11 @@ import (
 )
 
 type VerifiedFact struct {
-	VerifierIDHash   [32]byte
-	SubjectTag       [32]byte
-	FactTypeHash     [32]byte
-	IssuerPolicyRoot [32]byte
-	SchemaHash       [32]byte
-	Nullifier        [32]byte
-	VerifiedAt       uint64
-	Exists           bool
+	VerifierIDHash [32]byte
+	SubjectTag     [32]byte
+	FactTypeHash   [32]byte
+	VerifiedAt     uint64
+	Exists         bool
 }
 
 // LookupFact reads a VerifiedFact from FactRegistry by (verifierIdHash, subjectTag, factTypeHash)
@@ -55,28 +52,22 @@ func LookupFact(rpcURL, factRegistryAddr string, verifierIDHash, subjectTag, fac
 	}
 
 	decoded, ok := outputs[0].(struct {
-		VerifierIdHash   [32]byte `json:"verifierIdHash"`
-		SubjectTag       [32]byte `json:"subjectTag"`
-		FactTypeHash     [32]byte `json:"factTypeHash"`
-		IssuerPolicyRoot [32]byte `json:"issuerPolicyRoot"`
-		SchemaHash       [32]byte `json:"schemaHash"`
-		Nullifier        [32]byte `json:"nullifier"`
-		VerifiedAt       uint64   `json:"verifiedAt"`
-		Exists           bool     `json:"exists"`
+		VerifierIdHash [32]byte `json:"verifierIdHash"`
+		SubjectTag     [32]byte `json:"subjectTag"`
+		FactTypeHash   [32]byte `json:"factTypeHash"`
+		VerifiedAt     uint64   `json:"verifiedAt"`
+		Exists         bool     `json:"exists"`
 	})
 	if !ok {
 		return nil, fmt.Errorf("unexpected getFact response type %T", outputs[0])
 	}
 
 	return &VerifiedFact{
-		VerifierIDHash:   decoded.VerifierIdHash,
-		SubjectTag:       decoded.SubjectTag,
-		FactTypeHash:     decoded.FactTypeHash,
-		IssuerPolicyRoot: decoded.IssuerPolicyRoot,
-		SchemaHash:       decoded.SchemaHash,
-		Nullifier:        decoded.Nullifier,
-		VerifiedAt:       decoded.VerifiedAt,
-		Exists:           decoded.Exists,
+		VerifierIDHash: decoded.VerifierIdHash,
+		SubjectTag:     decoded.SubjectTag,
+		FactTypeHash:   decoded.FactTypeHash,
+		VerifiedAt:     decoded.VerifiedAt,
+		Exists:         decoded.Exists,
 	}, nil
 }
 
@@ -142,9 +133,6 @@ func init() {
 						{"name": "verifierIdHash", "type": "bytes32"},
 						{"name": "subjectTag", "type": "bytes32"},
 						{"name": "factTypeHash", "type": "bytes32"},
-						{"name": "issuerPolicyRoot", "type": "bytes32"},
-						{"name": "schemaHash", "type": "bytes32"},
-						{"name": "nullifier", "type": "bytes32"},
 						{"name": "verifiedAt", "type": "uint64"},
 						{"name": "exists", "type": "bool"}
 					],

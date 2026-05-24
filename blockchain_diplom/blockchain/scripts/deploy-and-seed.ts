@@ -10,8 +10,10 @@ async function main() {
   const ZKTranscriptLib = await ethers.getContractFactory("ZKTranscriptLib");
   const zkLib = await ZKTranscriptLib.deploy();
   await zkLib.waitForDeployment();
+  const zkLibReceipt = await zkLib.deploymentTransaction()?.wait();
   const zkLibAddr = await zkLib.getAddress();
   console.log("ZKTranscriptLib:", zkLibAddr);
+  console.log("ZKTranscriptLib deploy gas:", zkLibReceipt?.gasUsed?.toString());
 
   // 2. Deploy HonkVerifier
   const Verifier = await ethers.getContractFactory("HonkVerifier", {
@@ -19,15 +21,19 @@ async function main() {
   });
   const verifier = await Verifier.deploy();
   await verifier.waitForDeployment();
+  const verifierReceipt = await verifier.deploymentTransaction()?.wait();
   const verifierAddr = await verifier.getAddress();
   console.log("NoirVerifier:", verifierAddr);
+  console.log("NoirVerifier deploy gas:", verifierReceipt?.gasUsed?.toString());
 
   // 3. Deploy FactRegistry
   const FactRegistry = await ethers.getContractFactory("FactRegistry");
   const factReg = await FactRegistry.deploy(verifierAddr);
   await factReg.waitForDeployment();
+  const factRegReceipt = await factReg.deploymentTransaction()?.wait();
   const factRegAddr = await factReg.getAddress();
   console.log("FactRegistry:", factRegAddr);
+  console.log("FactRegistry deploy gas:", factRegReceipt?.gasUsed?.toString());
 
   // Save deployment
   const deployment = {
@@ -59,31 +65,27 @@ async function main() {
     for (let i = 0; i < piRaw.length; i += 32) {
       publicInputs.push("0x" + Buffer.from(piRaw.subarray(i, i + 32)).toString("hex"));
     }
-    if (publicInputs.length !== 7) {
-      throw new Error(`expected 7 public inputs, got ${publicInputs.length}`);
+    if (publicInputs.length !== 4) {
+      throw new Error(`expected 4 public inputs, got ${publicInputs.length}`);
     }
 
-    const offset = publicInputs.length - 7;
+    const offset = publicInputs.length - 4;
     const verifierIdHash = publicInputs[offset + 0];
     const factTypeHash = publicInputs[offset + 1];
-    const issuerPolicyRoot = publicInputs[offset + 2];
-    const schemaHash = publicInputs[offset + 3];
-    const subjectTag = publicInputs[offset + 4];
-    const nullifier = publicInputs[offset + 5];
+    const subjectTag = publicInputs[offset + 2];
 
     const factRegistry = await ethers.getContractAt("FactRegistry", factRegAddr);
-    await (await factRegistry.setIssuerPolicyRoot(issuerPolicyRoot, true)).wait();
 
     const tx = await factRegistry.submitVerifiedFact(
       proofBytes, publicInputs,
       verifierIdHash, subjectTag, factTypeHash,
-      issuerPolicyRoot, schemaHash, nullifier,
     );
     const receipt = await tx.wait();
     if (receipt?.status !== 1) {
       throw new Error("proof submit transaction failed");
     }
     console.log("Proof submitted! TX:", receipt?.hash);
+    console.log("submitVerifiedFact gas:", receipt?.gasUsed?.toString());
     console.log("Subject tag:", subjectTag);
     console.log("Fact type hash:", factTypeHash);
     console.log("Verifier ID hash:", verifierIdHash);

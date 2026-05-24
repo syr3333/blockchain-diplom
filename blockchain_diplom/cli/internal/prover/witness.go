@@ -25,15 +25,6 @@ func ComputeSubjectBinding(holderSecret, schemaHash *big.Int) (*big.Int, error) 
 	return result, nil
 }
 
-// ComputeNullifier = Poseidon(holder_secret, verifier_id_hash, fact_type_hash, schema_hash)
-func ComputeNullifier(holderSecret, verifierIDHash, factTypeHash, schemaHash *big.Int) (*big.Int, error) {
-	result, err := poseidon.Hash([]*big.Int{holderSecret, verifierIDHash, factTypeHash, schemaHash})
-	if err != nil {
-		return nil, fmt.Errorf("compute nullifier: %w", err)
-	}
-	return result, nil
-}
-
 // HexToField converts a hex string (0x...) to a big.Int field element
 func HexToField(hex string) (*big.Int, error) {
 	if len(hex) >= 2 && hex[:2] == "0x" {

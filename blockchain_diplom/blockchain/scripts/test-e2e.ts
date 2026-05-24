@@ -30,7 +30,7 @@ async function main() {
   }
   console.log(`Proof size: ${proofBytes.length} bytes`);
   console.log(`Public inputs count: ${publicInputs.length}`);
-  assert(publicInputs.length === 7, `expected 7 public inputs, got ${publicInputs.length}`);
+  assert(publicInputs.length === 4, `expected 4 public inputs, got ${publicInputs.length}`);
 
   // 1. Test NoirVerifier.verify directly
   const verifierAddr = deployment.contracts.noirVerifier;
@@ -46,19 +46,13 @@ async function main() {
   const factRegistryAddr = deployment.contracts.factRegistry;
   const factRegistry = await ethers.getContractAt("FactRegistry", factRegistryAddr);
 
-  // Use some of the public inputs as typed args
-  // The circuit public inputs order: verifier_id_hash, fact_type_hash, issuer_policy_root, schema_hash, subject_tag, nullifier, cutoff_date_days
-  // But Noir adds 16 internal inputs, so user inputs start at index 16
-  // User inputs are appended at the end by Noir.
-  const offset = publicInputs.length - 7;
+  // Use the public inputs as typed args.
+  // The circuit public inputs order: verifier_id_hash, fact_type_hash, subject_tag, cutoff_date_days
+  const offset = 0;
   const verifierIdHash = publicInputs[offset + 0];
   const factTypeHash = publicInputs[offset + 1];
-  const issuerPolicyRoot = publicInputs[offset + 2];
-  const schemaHash = publicInputs[offset + 3];
-  const subjectTag = publicInputs[offset + 4];
-  const nullifier = publicInputs[offset + 5];
+  const subjectTag = publicInputs[offset + 2];
 
-  await (await factRegistry.setIssuerPolicyRoot(issuerPolicyRoot, true)).wait();
   const existing = await factRegistry.getFact(verifierIdHash, subjectTag, factTypeHash);
   if (existing.exists) {
     console.log("Fact already exists, skipping first submit");
@@ -69,9 +63,6 @@ async function main() {
       verifierIdHash,
       subjectTag,
       factTypeHash,
-      issuerPolicyRoot,
-      schemaHash,
-      nullifier,
     );
     const receipt = await tx.wait();
     assert(receipt?.status === 1, "submit transaction failed");
@@ -91,8 +82,8 @@ async function main() {
   assert(valid, "isFactValid returned false");
   console.log("Fact valid:", valid);
 
-  // 5. Try duplicate nullifier (should fail)
-  console.log("\n=== Step 5: Try duplicate nullifier (should revert) ===");
+  // 5. Try duplicate fact key (should fail)
+  console.log("\n=== Step 5: Try duplicate fact key (should revert) ===");
   try {
     await factRegistry.submitVerifiedFact(
       proofBytes,
@@ -100,17 +91,14 @@ async function main() {
       verifierIdHash,
       subjectTag,
       factTypeHash,
-      issuerPolicyRoot,
-      schemaHash,
-      nullifier,
     );
     throw new Error("duplicate submit unexpectedly succeeded");
   } catch (e: any) {
     assert(
-      e.message?.includes("Nullifier already used"),
+      e.message?.includes("Fact already exists for this key"),
       `unexpected duplicate submit error: ${e.message?.substring(0, 200)}`,
     );
-    console.log("Correctly reverted: YES - Nullifier already used");
+    console.log("Correctly reverted: YES - Fact already exists for this key");
   }
 
   console.log("\n=== E2E TEST COMPLETE ===");

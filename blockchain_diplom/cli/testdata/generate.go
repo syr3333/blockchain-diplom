@@ -16,6 +16,7 @@ import (
 )
 
 const sampleIssuerPrivateKeyHex = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+const sampleBankIssuerPrivateKeyHex = "1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100"
 
 func main() {
 	// 1. Build a deterministic issuer EdDSA keypair for reproducible fixtures.
@@ -93,15 +94,13 @@ func main() {
 		idx /= 2
 	}
 
-	// 6. Compute subject_tag and nullifier
+	// 6. Compute subject_tag
 	verifierIDHash := new(big.Int).Mod(hexToBig("0x2222222222222222222222222222222222222222222222222222222222222222"), bnPrime)
 	factTypeHash := new(big.Int).Mod(hexToBig("0x3333333333333333333333333333333333333333333333333333333333333333"), bnPrime)
 
 	subjectTag, _ := poseidon.Hash([]*big.Int{holderSecret, verifierIDHash})
-	nullifier, _ := poseidon.Hash([]*big.Int{holderSecret, verifierIDHash, factTypeHash, schemaHash})
 
 	fmt.Printf("Subject tag: 0x%064x\n", subjectTag)
-	fmt.Printf("Nullifier: 0x%064x\n", nullifier)
 
 	cutoffDateDays := uint64(13879) // ~2008-01-01 (18 years before ~2026)
 
@@ -197,7 +196,151 @@ func main() {
 	}
 	must(writeJSON("verification_request.json", request))
 
-	// 10. Write Prover.toml directly for nargo test
+	// 10. Additional example: a bank/KYC provider issues the same age fact.
+	// It uses a shared two-issuer policy root, so the public root no longer
+	// identifies the exact issuer by itself.
+	bankIssuerPrivKey := fixedPrivateKey(sampleBankIssuerPrivateKeyHex)
+	bankIssuerPubKey := bankIssuerPrivKey.Public()
+	bankCredHash, _ := poseidon.Hash([]*big.Int{bankIssuerPubKey.X, bankIssuerPubKey.Y, signedClaim, schemaHash})
+	bankSig := bankIssuerPrivKey.SignPoseidon(bankCredHash)
+	bankOK := bankIssuerPubKey.VerifyPoseidon(bankCredHash, bankSig)
+	fmt.Printf("Bank signature valid: %v\n", bankOK)
+	if !bankOK {
+		fmt.Println("ERROR: bank signature verification failed!")
+		os.Exit(1)
+	}
+
+	bankLeaf, _ := poseidon.Hash([]*big.Int{bankIssuerPubKey.X, bankIssuerPubKey.Y})
+	fmt.Printf("Bank leaf: 0x%064x\n", bankLeaf)
+
+	multiLeaves := make([]*big.Int, maxLeaves)
+	multiLeaves[0] = leaf
+	multiLeaves[1] = bankLeaf
+	for i := 2; i < maxLeaves; i++ {
+		multiLeaves[i] = big.NewInt(0)
+	}
+
+	multiLevels := make([][]*big.Int, depth+1)
+	multiLevels[0] = multiLeaves
+	for d := 0; d < depth; d++ {
+		prev := multiLevels[d]
+		next := make([]*big.Int, len(prev)/2)
+		for i := 0; i < len(next); i++ {
+			h, _ := poseidon.Hash([]*big.Int{prev[2*i], prev[2*i+1]})
+			next[i] = h
+		}
+		multiLevels[d+1] = next
+	}
+	multiRoot := multiLevels[depth][0]
+	fmt.Printf("Multi-issuer Merkle root: 0x%064x\n", multiRoot)
+
+	multiMerklePath := make([]string, depth)
+	multiMerkleIndexBits := make([]int, depth)
+	idx = 0
+	for d := 0; d < depth; d++ {
+		if idx%2 == 0 {
+			multiMerklePath[d] = multiLevels[d][idx+1].String()
+			multiMerkleIndexBits[d] = 0
+		} else {
+			multiMerklePath[d] = multiLevels[d][idx-1].String()
+			multiMerkleIndexBits[d] = 1
+		}
+		idx /= 2
+	}
+
+	bankCredential := map[string]interface{}{
+		"version":       "1.0",
+		"credential_id": "urn:uuid:test-cred-bank-001",
+		"type":          []string{"VerifiableCredential", "AgeOver18Credential", "KycAgeCredential"},
+		"issuer": map[string]string{
+			"did":      "did:web:bank.example.ru",
+			"kid":      "zk-kyc-age-key-1",
+			"pubkey_x": fmt.Sprintf("0x%064x", bankIssuerPubKey.X),
+			"pubkey_y": fmt.Sprintf("0x%064x", bankIssuerPubKey.Y),
+		},
+		"subject": map[string]string{
+			"did":                "did:key:holder-test-001",
+			"binding_commitment": fmt.Sprintf("0x%064x", holderBinding),
+		},
+		"issuance_date":   "2026-03-02T09:00:00Z",
+		"expiration_date": "2031-03-02T09:00:00Z",
+		"schema_id":       "vc.age.v1",
+		"schema_hash":     fmt.Sprintf("0x%064x", schemaHash),
+		"claims": map[string]interface{}{
+			"birth_date_days": birthDateDays.Uint64(),
+		},
+		"revocation": map[string]interface{}{
+			"status_list_id": "bank-kyc-age-revocation-2026-03",
+			"status_index":   915,
+		},
+		"signature": map[string]string{
+			"alg": "eddsa-bn254-poseidon",
+			"r8x": fmt.Sprintf("0x%064x", bankSig.R8.X),
+			"r8y": fmt.Sprintf("0x%064x", bankSig.R8.Y),
+			"s":   fmt.Sprintf("0x%064x", bankSig.S),
+		},
+	}
+	must(writeJSON("credential_bank.json", bankCredential))
+
+	multiIssuerEntries := []map[string]string{
+		{
+			"issuer_id":   "did:web:gov.example.ru",
+			"pubkey_hash": fmt.Sprintf("0x%064x", leaf),
+			"leaf":        fmt.Sprintf("0x%064x", leaf),
+		},
+		{
+			"issuer_id":   "did:web:bank.example.ru",
+			"pubkey_hash": fmt.Sprintf("0x%064x", bankLeaf),
+			"leaf":        fmt.Sprintf("0x%064x", bankLeaf),
+		},
+	}
+
+	multiIssuerPolicy := map[string]interface{}{
+		"version":   "1.0",
+		"policy_id": "age-trusted-issuers-2026-03",
+		"hash_alg":  "poseidon",
+		"depth":     depth,
+		"root":      fmt.Sprintf("0x%064x", multiRoot),
+		"issuers":   multiIssuerEntries,
+	}
+	must(writeJSON("issuer_policy.json", multiIssuerPolicy))
+	must(writeJSON("issuer_policy_multi.json", multiIssuerPolicy))
+
+	multiIssuerRequest := map[string]interface{}{
+		"version":          "1.0",
+		"request_id":       "urn:uuid:req-test-bank-001",
+		"verifier_id":      "did:web:shop.example.com",
+		"verifier_id_hash": fmt.Sprintf("0x%064x", verifierIDHash),
+		"fact_type":        "age_over_18",
+		"fact_type_hash":   fmt.Sprintf("0x%064x", factTypeHash),
+		"purpose":          "age_check",
+		"issued_at":        "2026-03-30T10:00:00Z",
+		"expires_at":       "2027-03-30T10:05:00Z",
+		"schema_id":        "vc.age.v1",
+		"schema_hash":      fmt.Sprintf("0x%064x", schemaHash),
+		"circuit_id":       "age_over_18_v1",
+		"predicate": map[string]interface{}{
+			"type":             "birth_date_lte_cutoff",
+			"cutoff_date_days": cutoffDateDays,
+		},
+		"issuer_policy": map[string]interface{}{
+			"root":           fmt.Sprintf("0x%064x", multiRoot),
+			"snapshot_block": 0,
+			"issuers":        multiIssuerEntries,
+		},
+		"chain": map[string]interface{}{
+			"chain_id":              31337,
+			"fact_registry_address": "0x0000000000000000000000000000000000000000",
+		},
+		"response": map[string]string{
+			"mode":         "https_post",
+			"callback_url": "https://shop.example.com/api/zk/notify",
+		},
+	}
+	must(writeJSON("verification_request.json", multiIssuerRequest))
+	must(writeJSON("verification_request_multi_issuer.json", multiIssuerRequest))
+
+	// 11. Write Prover.toml directly for nargo test
 	proverToml := fmt.Sprintf(`[credential]
 birth_date_days = "%d"
 holder_secret = "%s"
@@ -219,7 +362,7 @@ signature_s = "%s"
 
 	proverToml += "issuer_policy_path = ["
 	for i := 0; i < depth; i++ {
-		proverToml += fmt.Sprintf(`"%s"`, merklePath[i])
+		proverToml += fmt.Sprintf(`"%s"`, multiMerklePath[i])
 		if i < depth-1 {
 			proverToml += ", "
 		}
@@ -228,7 +371,7 @@ signature_s = "%s"
 
 	proverToml += "issuer_policy_path_indices = ["
 	for i := 0; i < depth; i++ {
-		proverToml += fmt.Sprintf(`"%d"`, merkleIndexBits[i])
+		proverToml += fmt.Sprintf(`"%d"`, multiMerkleIndexBits[i])
 		if i < depth-1 {
 			proverToml += ", "
 		}
@@ -239,18 +382,12 @@ signature_s = "%s"
 [context]
 verifier_id_hash = "%s"
 fact_type_hash = "%s"
-issuer_policy_root = "%s"
-schema_hash = "%s"
 subject_tag = "%s"
-nullifier = "%s"
 cutoff_date_days = "%d"
 `,
 		verifierIDHash.String(),
 		factTypeHash.String(),
-		root.String(),
-		schemaHash.String(),
 		subjectTag.String(),
-		nullifier.String(),
 		cutoffDateDays,
 	)
 
@@ -261,7 +398,11 @@ cutoff_date_days = "%d"
 }
 
 func fixedIssuerPrivateKey() babyjub.PrivateKey {
-	raw, err := hex.DecodeString(sampleIssuerPrivateKeyHex)
+	return fixedPrivateKey(sampleIssuerPrivateKeyHex)
+}
+
+func fixedPrivateKey(keyHex string) babyjub.PrivateKey {
+	raw, err := hex.DecodeString(keyHex)
 	if err != nil {
 		panic(err)
 	}

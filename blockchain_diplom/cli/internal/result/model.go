@@ -16,8 +16,6 @@ type VerificationResult struct {
 type ProofContext struct {
 	SubjectTag   string `json:"subject_tag"`
 	FactTypeHash string `json:"fact_type_hash"`
-	Nullifier    string `json:"nullifier"`
-	PolicyRoot   string `json:"policy_root"`
 }
 
 type Decision struct {

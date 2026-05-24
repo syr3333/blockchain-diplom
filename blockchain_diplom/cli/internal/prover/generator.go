@@ -8,12 +8,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"diplom/cli/internal/creds"
 	"diplom/cli/internal/policy"
 	"diplom/cli/internal/request"
 )
+
+const trustedIssuerPolicyRootHex = "0x227dffb9ee9141c6c73a6d60dfaaa24583e8c52b825cf5480aa251079237d5ec"
+const ageSchemaHashHex = "0x1111111111111111111111111111111111111111111111111111111111111111"
 
 // GenerateProof builds prover input, calls nargo execute + bb prove, returns ProofPackage
 func GenerateProof(
@@ -82,6 +86,9 @@ func GenerateProof(
 	if err != nil {
 		return nil, fmt.Errorf("parse schema_hash: %w", err)
 	}
+	if !strings.EqualFold(req.SchemaHash, ageSchemaHashHex) {
+		return nil, fmt.Errorf("request schema_hash must match circuit schema %s", ageSchemaHashHex)
+	}
 	subjectBinding, err := ComputeSubjectBinding(holderSecret, schemaHash)
 	if err != nil {
 		return nil, err
@@ -98,14 +105,16 @@ func GenerateProof(
 	if err != nil {
 		return nil, err
 	}
-	nullifier, err := ComputeNullifier(holderSecret, verifierIDHash, factTypeHash, schemaHash)
-	if err != nil {
-		return nil, err
-	}
 
 	policyRoot, err := HexToField(pol.Root)
 	if err != nil {
 		return nil, fmt.Errorf("parse policy root: %w", err)
+	}
+	if !strings.EqualFold(pol.Root, trustedIssuerPolicyRootHex) {
+		return nil, fmt.Errorf("policy root must match circuit policy root %s", trustedIssuerPolicyRootHex)
+	}
+	if pol.Root != req.IssuerPolicy.Root && !strings.EqualFold(pol.Root, req.IssuerPolicy.Root) {
+		return nil, fmt.Errorf("request issuer_policy.root does not match policy file root")
 	}
 
 	// 4. Write Prover.toml for nargo
@@ -116,8 +125,7 @@ func GenerateProof(
 		cred.Signature,
 		merklePath, merkleIndexBits,
 		verifierIDHash, factTypeHash,
-		policyRoot, schemaHash,
-		subjectTag, nullifier,
+		subjectTag,
 		req.Predicate.CutoffDateDays,
 	)
 	if err != nil {
@@ -180,25 +188,20 @@ func GenerateProof(
 		PublicInputs: []string{
 			FieldToHex(verifierIDHash),
 			FieldToHex(factTypeHash),
-			FieldToHex(policyRoot),
-			FieldToHex(schemaHash),
 			FieldToHex(subjectTag),
-			FieldToHex(nullifier),
 			fmt.Sprintf("0x%064x", new(big.Int).SetUint64(req.Predicate.CutoffDateDays)),
 		},
 		PublicInputLabels: []string{
 			"verifier_id_hash",
 			"fact_type_hash",
-			"issuer_policy_root",
-			"schema_hash",
 			"subject_tag",
-			"nullifier",
 			"cutoff_date_days",
 		},
 		SubjectTag:  FieldToHex(subjectTag),
-		Nullifier:   FieldToHex(nullifier),
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
 	}
+
+	_ = policyRoot
 
 	return pkg, nil
 }
@@ -217,8 +220,7 @@ func buildProverToml(
 	sig creds.EdDSASignature,
 	merklePath []*big.Int, merkleIndexBits []int,
 	verifierIDHash, factTypeHash *big.Int,
-	policyRoot, schemaHash *big.Int,
-	subjectTag, nullifier *big.Int,
+	subjectTag *big.Int,
 	cutoffDateDays uint64,
 ) (string, error) {
 	sigRX, err := HexToField(sig.R8X)
@@ -283,18 +285,12 @@ signature_s = "%s"
 [context]
 verifier_id_hash = "%s"
 fact_type_hash = "%s"
-issuer_policy_root = "%s"
-schema_hash = "%s"
 subject_tag = "%s"
-nullifier = "%s"
 cutoff_date_days = "%d"
 `,
 		verifierIDHash.String(),
 		factTypeHash.String(),
-		policyRoot.String(),
-		schemaHash.String(),
 		subjectTag.String(),
-		nullifier.String(),
 		cutoffDateDays,
 	)
 

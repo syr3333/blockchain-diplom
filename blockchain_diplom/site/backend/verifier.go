@@ -15,16 +15,13 @@ import (
 )
 
 type FactResult struct {
-	Exists           bool   `json:"exists"`
-	VerifierIDHash   string `json:"verifier_id_hash,omitempty"`
-	SubjectTag       string `json:"subject_tag,omitempty"`
-	FactTypeHash     string `json:"fact_type_hash,omitempty"`
-	IssuerPolicyRoot string `json:"issuer_policy_root,omitempty"`
-	SchemaHash       string `json:"schema_hash,omitempty"`
-	Nullifier        string `json:"nullifier,omitempty"`
-	VerifiedAt       string `json:"verified_at,omitempty"`
-	IsValid          bool   `json:"is_valid"`
-	FactKey          string `json:"fact_key,omitempty"`
+	Exists         bool   `json:"exists"`
+	VerifierIDHash string `json:"verifier_id_hash,omitempty"`
+	SubjectTag     string `json:"subject_tag,omitempty"`
+	FactTypeHash   string `json:"fact_type_hash,omitempty"`
+	VerifiedAt     string `json:"verified_at,omitempty"`
+	IsValid        bool   `json:"is_valid"`
+	FactKey        string `json:"fact_key,omitempty"`
 }
 
 var factABI abi.ABI
@@ -44,9 +41,6 @@ func init() {
 						{"name": "verifierIdHash", "type": "bytes32"},
 						{"name": "subjectTag", "type": "bytes32"},
 						{"name": "factTypeHash", "type": "bytes32"},
-						{"name": "issuerPolicyRoot", "type": "bytes32"},
-						{"name": "schemaHash", "type": "bytes32"},
-						{"name": "nullifier", "type": "bytes32"},
 						{"name": "verifiedAt", "type": "uint64"},
 						{"name": "exists", "type": "bool"}
 					],
@@ -107,14 +101,11 @@ func lookupFactOnChain(rpcURL, factRegistryAddr, verifierIDHashHex, subjectTagHe
 
 	raw := out[0]
 	s, ok := raw.(struct {
-		VerifierIdHash   [32]byte `json:"verifierIdHash"`
-		SubjectTag       [32]byte `json:"subjectTag"`
-		FactTypeHash     [32]byte `json:"factTypeHash"`
-		IssuerPolicyRoot [32]byte `json:"issuerPolicyRoot"`
-		SchemaHash       [32]byte `json:"schemaHash"`
-		Nullifier        [32]byte `json:"nullifier"`
-		VerifiedAt       uint64   `json:"verifiedAt"`
-		Exists           bool     `json:"exists"`
+		VerifierIdHash [32]byte `json:"verifierIdHash"`
+		SubjectTag     [32]byte `json:"subjectTag"`
+		FactTypeHash   [32]byte `json:"factTypeHash"`
+		VerifiedAt     uint64   `json:"verifiedAt"`
+		Exists         bool     `json:"exists"`
 	})
 	if !ok {
 		return nil, fmt.Errorf("unexpected blockchain response format")
@@ -132,15 +123,12 @@ func lookupFactOnChain(rpcURL, factRegistryAddr, verifierIDHashHex, subjectTagHe
 	factKey := crypto.Keccak256Hash(packed)
 
 	res := &FactResult{
-		Exists:           s.Exists,
-		VerifierIDHash:   "0x" + hex.EncodeToString(s.VerifierIdHash[:]),
-		SubjectTag:       "0x" + hex.EncodeToString(s.SubjectTag[:]),
-		FactTypeHash:     "0x" + hex.EncodeToString(s.FactTypeHash[:]),
-		IssuerPolicyRoot: "0x" + hex.EncodeToString(s.IssuerPolicyRoot[:]),
-		SchemaHash:       "0x" + hex.EncodeToString(s.SchemaHash[:]),
-		Nullifier:        "0x" + hex.EncodeToString(s.Nullifier[:]),
-		IsValid:          s.Exists,
-		FactKey:          factKey.Hex(),
+		Exists:         s.Exists,
+		VerifierIDHash: "0x" + hex.EncodeToString(s.VerifierIdHash[:]),
+		SubjectTag:     "0x" + hex.EncodeToString(s.SubjectTag[:]),
+		FactTypeHash:   "0x" + hex.EncodeToString(s.FactTypeHash[:]),
+		IsValid:        s.Exists,
+		FactKey:        factKey.Hex(),
 	}
 
 	res.VerifiedAt = time.Unix(int64(s.VerifiedAt), 0).UTC().Format(time.RFC3339)

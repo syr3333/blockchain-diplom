@@ -124,13 +124,14 @@ Issuer                     Holder                      Blockchain              V
 │ Sign with EdDSA │        │                  │        │                 │     │                  │
 └────────────────┘         │ Private:         │        │ FactRegistry    │     │ Query blockchain │
                            │  birth_date      │        │ stores fact     │────>│ by fact_key      │
-                           │  holder_secret   │        │ checks nullifier│     │                  │
+                           │  holder_secret   │        │ checks fact_key │     │                  │
                            │  issuer_identity │        └─────────────────┘     │ FACT FOUND /     │
                            │                  │                                │ NOT FOUND        │
                            │ Public:          │                                └─────────────────┘
+                           │  verifier_id_hash│
                            │  subject_tag     │
-                           │  nullifier       │
                            │  fact_type_hash  │
+                           │  cutoff_date     │
                            └─────────────────┘
 ```
 
@@ -138,19 +139,20 @@ Issuer                     Holder                      Blockchain              V
 
 - **Zero-knowledge**: verifier never sees birth date, passport, or any personal data
 - **Unlinkability**: each verifier gets a unique pseudonym (`subject_tag = Poseidon(holder_secret, verifier_id_hash)`) — cannot track user across services
-- **Replay protection**: `nullifier` prevents submitting the same proof twice
-- **Issuer privacy**: verifier doesn't learn which specific issuer signed the credential
-- **Issuer trust**: `FactRegistry` accepts only allowlisted Merkle policy roots
-- **On-chain minimal data**: blockchain stores only the verification result, never the credential
+- **Replay protection**: `factKey = keccak256(verifier_id_hash || subject_tag || fact_type_hash)` prevents submitting the same verified fact twice
+- **Issuer privacy**: verifier doesn't learn which specific issuer signed the credential; issuer policy root is fixed inside the circuit instead of returned as a public input
+- **Issuer trust**: the circuit accepts only issuers included in the embedded trusted Merkle policy root
+- **On-chain minimal data**: blockchain stores only the lookup result; no credential, issuer key, schema hash, policy root, or public nullifier is stored
 - **Relayer privacy**: the transaction sender pays gas but is not stored in the verified fact, event payload, API response, or UI
 
-### ZK circuit checks (5 assertions)
+See [`docs/public_inputs_privacy.md`](docs/public_inputs_privacy.md) for the public input audit and issuer-linkability notes.
+
+### ZK circuit checks (4 assertions)
 
 1. **Predicate**: `birth_date_days <= cutoff_date_days` (age check)
 2. **EdDSA signature**: credential and Holder binding are authentically signed by a trusted issuer
 3. **Merkle inclusion**: issuer's public key is in the trusted policy tree (depth 16)
 4. **subject_tag**: correctly derived from holder_secret + verifier_id
-5. **nullifier**: correctly derived, prevents replay
 
 ### Circuit input groups
 
@@ -160,7 +162,7 @@ Issuer                     Holder                      Blockchain              V
 |-------|------------|---------|
 | `credential` | private | Birth date claim and Holder secret bound to the signed credential |
 | `issuer` | private | Issuer public key, EdDSA signature parts, and Merkle path proving the issuer is trusted |
-| `context` | public | Values checked by the verifier contract: verifier id, fact type, policy root, schema, subject tag, nullifier, and age cutoff |
+| `context` | public | Minimal values checked by the verifier contract: verifier id, fact type, subject tag, and age cutoff |
 
 ---
 
@@ -225,6 +227,12 @@ EOF
 
 ./zk-verify import-credential --file testdata/credential.json
 
+# Alternative issuer example: bank/KYC provider in a shared two-issuer policy
+CREDENTIALS_FILE=testdata/credential_bank.json \
+REQUEST_FILE=testdata/verification_request_multi_issuer.json \
+POLICY_FILE=testdata/issuer_policy_multi.json \
+./zk-verify prove
+
 ./zk-verify lookup-fact \
   --verifier-id-hash 0x2222222222222222222222222222222222222222222222222222222222222222 \
   --subject-tag 0x03d637250e8c93e4f7789c830d1347ccc13e323e511e5bc4e51f26f44c39cbc9 \
@@ -256,11 +264,12 @@ anonymous-fact-verification/
 │   │   ├── policy/               Poseidon Merkle tree (depth 16)
 │   │   ├── creds/                Credential model
 │   │   └── request/              Verification request model
-│   └── testdata/generate.go      Generate real test data (EdDSA keys, signatures)
+│   └── testdata/                 Generated credentials, requests, and issuer policies
 ├── site/                         Verifier web application
 │   ├── backend/                  Go HTTP server (on-chain fact lookup)
 │   ├── frontend/                 HTML/JS/CSS
 │   └── Dockerfile
+├── docs/                         Public-input and privacy notes
 ├── docker-compose.yml            Run everything with one command
 ```
 
@@ -271,7 +280,6 @@ anonymous-fact-verification/
 | **subject_tag** | `Poseidon(holder_secret, verifier_id_hash)` |
 | **holder_binding** | `Poseidon(holder_secret, schema_hash)` |
 | **signed_claim** | `Poseidon(birth_date_days, holder_binding)` |
-| **nullifier** | `Poseidon(holder_secret, verifier_id_hash, fact_type_hash, schema_hash)` |
 | **credential_hash** | `Poseidon(issuer_pubkey_x, issuer_pubkey_y, signed_claim, schema_hash)` |
 | **fact_key** | `keccak256(verifier_id_hash || subject_tag || fact_type_hash)` |
 | **merkle_leaf** | `Poseidon(issuer_pubkey_x, issuer_pubkey_y)` |

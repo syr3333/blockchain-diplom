@@ -10,6 +10,5 @@ type ProofPackage struct {
 	PublicInputs      []string `json:"public_inputs"`
 	PublicInputLabels []string `json:"public_input_labels"`
 	SubjectTag        string   `json:"subject_tag"`
-	Nullifier         string   `json:"nullifier"`
 	GeneratedAt       string   `json:"generated_at"`
 }

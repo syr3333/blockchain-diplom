@@ -117,7 +117,6 @@ func proveCmd() *cobra.Command {
 
 			fmt.Printf("Proof generated successfully!\n")
 			fmt.Printf("  Subject tag: %s\n", pkg.SubjectTag)
-			fmt.Printf("  Nullifier:   %s\n", pkg.Nullifier)
 			fmt.Printf("  Saved to:    %s\n", outPath)
 			return nil
 		},
@@ -157,8 +156,8 @@ func submitFactCmd() *cobra.Command {
 					return fmt.Errorf("parse public input %d: %w", i, err)
 				}
 			}
-			if len(pkg.PublicInputs) != 7 {
-				return fmt.Errorf("proof package has %d public inputs, want 7", len(pkg.PublicInputs))
+			if len(pkg.PublicInputs) != 4 {
+				return fmt.Errorf("proof package has %d public inputs, want 4", len(pkg.PublicInputs))
 			}
 
 			verifierIDHash, err := blockchain.HexToBytes32(pkg.PublicInputs[0])
@@ -169,27 +168,12 @@ func submitFactCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("parse subject_tag: %w", err)
 			}
-			if !strings.EqualFold(pkg.SubjectTag, pkg.PublicInputs[4]) {
-				return fmt.Errorf("subject_tag does not match public input 4")
+			if !strings.EqualFold(pkg.SubjectTag, pkg.PublicInputs[2]) {
+				return fmt.Errorf("subject_tag does not match public input 2")
 			}
 			factTypeHash, err := blockchain.HexToBytes32(pkg.PublicInputs[1])
 			if err != nil {
 				return fmt.Errorf("parse fact_type_hash: %w", err)
-			}
-			policyRoot, err := blockchain.HexToBytes32(pkg.PublicInputs[2])
-			if err != nil {
-				return fmt.Errorf("parse issuer_policy_root: %w", err)
-			}
-			schemaHash, err := blockchain.HexToBytes32(pkg.PublicInputs[3])
-			if err != nil {
-				return fmt.Errorf("parse schema_hash: %w", err)
-			}
-			nullifier, err := blockchain.HexToBytes32(pkg.Nullifier)
-			if err != nil {
-				return fmt.Errorf("parse nullifier: %w", err)
-			}
-			if !strings.EqualFold(pkg.Nullifier, pkg.PublicInputs[5]) {
-				return fmt.Errorf("nullifier does not match public input 5")
 			}
 
 			chainID := new(big.Int)
@@ -205,14 +189,11 @@ func submitFactCmd() *cobra.Command {
 					ChainID:             chainID,
 				},
 				blockchain.SubmitParams{
-					Proof:            proofBytes,
-					PublicInputs:     publicInputs,
-					VerifierIDHash:   verifierIDHash,
-					SubjectTag:       subjectTag,
-					FactTypeHash:     factTypeHash,
-					IssuerPolicyRoot: policyRoot,
-					SchemaHash:       schemaHash,
-					Nullifier:        nullifier,
+					Proof:          proofBytes,
+					PublicInputs:   publicInputs,
+					VerifierIDHash: verifierIDHash,
+					SubjectTag:     subjectTag,
+					FactTypeHash:   factTypeHash,
 				},
 			)
 			if err != nil {

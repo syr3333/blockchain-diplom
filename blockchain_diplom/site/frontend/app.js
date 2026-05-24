@@ -67,9 +67,7 @@ document.getElementById('lookupForm').addEventListener('submit', async (e) => {
                     <table>
                         <tr><td>Status</td><td><strong>Valid</strong></td></tr>
                         <tr><td>Verified At</td><td>${esc(data.verified_at)}</td></tr>
-                        <tr><td>Nullifier</td><td><code>${esc(shorten(data.nullifier))}</code></td></tr>
-                        <tr><td>Policy Root</td><td><code>${esc(shorten(data.issuer_policy_root))}</code></td></tr>
-                        <tr><td>Schema Hash</td><td><code>${esc(shorten(data.schema_hash))}</code></td></tr>
+                        <tr><td>Fact Key</td><td><code>${esc(shorten(data.fact_key))}</code></td></tr>
                     </table>
                 </div>
             `;
