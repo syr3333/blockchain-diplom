@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"diplom/cli/internal/creds"
 	"diplom/cli/internal/policy"
@@ -100,17 +99,37 @@ func GenerateProof(
 		return nil, fmt.Errorf("credential subject binding does not match holder_secret")
 	}
 
-	subjectTag, err := ComputeSubjectTag(holderSecret, verifierIDHash)
-	if err != nil {
-		return nil, err
-	}
-
 	policyRoot, err := HexToField(pol.Root)
 	if err != nil {
 		return nil, fmt.Errorf("parse policy root: %w", err)
 	}
-	if pol.Root != req.IssuerPolicy.Root && !strings.EqualFold(pol.Root, req.IssuerPolicy.Root) {
+	if req.IssuerPolicy.Root != "" && pol.Root != req.IssuerPolicy.Root && !strings.EqualFold(pol.Root, req.IssuerPolicy.Root) {
 		return nil, fmt.Errorf("request issuer_policy.root does not match policy file root")
+	}
+	if pol.CommitmentSalt == "" {
+		return nil, fmt.Errorf("policy commitment_salt is required")
+	}
+	registrySalt, err := HexToField(pol.CommitmentSalt)
+	if err != nil {
+		return nil, fmt.Errorf("parse policy commitment_salt: %w", err)
+	}
+	registryCommitment, err := ComputeRegistryCommitment(policyRoot, registrySalt)
+	if err != nil {
+		return nil, err
+	}
+	if pol.RegistryCommitment != "" && !strings.EqualFold(FieldToHex(registryCommitment), pol.RegistryCommitment) {
+		return nil, fmt.Errorf("policy registry_commitment does not match root and salt")
+	}
+	if !strings.EqualFold(FieldToHex(registryCommitment), req.IssuerPolicy.RegistryCommitment) {
+		return nil, fmt.Errorf("request issuer_policy.registry_commitment does not match policy commitment")
+	}
+	contextHash, err := ComputeContextHash(verifierIDHash, factTypeHash, req.Predicate.CutoffDateDays, registryCommitment)
+	if err != nil {
+		return nil, err
+	}
+	subjectTag, err := ComputeSubjectTag(holderSecret, contextHash)
+	if err != nil {
+		return nil, err
 	}
 
 	// 4. Write Prover.toml for nargo
@@ -122,6 +141,9 @@ func GenerateProof(
 		merklePath, merkleIndexBits,
 		verifierIDHash, factTypeHash,
 		policyRoot,
+		registrySalt,
+		registryCommitment,
+		contextHash,
 		subjectTag,
 		req.Predicate.CutoffDateDays,
 	)
@@ -177,27 +199,12 @@ func GenerateProof(
 
 	// 8. Build ProofPackage
 	pkg := &ProofPackage{
-		Version:   "1.0",
-		RequestID: req.RequestID,
-		CircuitID: "age_over_18_v1",
-		Backend:   "noir-barretenberg",
-		Proof:     proofHex,
+		Proof: proofHex,
 		PublicInputs: []string{
-			FieldToHex(verifierIDHash),
-			FieldToHex(factTypeHash),
-			FieldToHex(policyRoot),
+			FieldToHex(contextHash),
+			FieldToHex(registryCommitment),
 			FieldToHex(subjectTag),
-			fmt.Sprintf("0x%064x", new(big.Int).SetUint64(req.Predicate.CutoffDateDays)),
 		},
-		PublicInputLabels: []string{
-			"verifier_id_hash",
-			"fact_type_hash",
-			"issuer_policy_root",
-			"subject_tag",
-			"cutoff_date_days",
-		},
-		SubjectTag:  FieldToHex(subjectTag),
-		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 
 	return pkg, nil
@@ -218,6 +225,9 @@ func buildProverToml(
 	merklePath []*big.Int, merkleIndexBits []int,
 	verifierIDHash, factTypeHash *big.Int,
 	policyRoot *big.Int,
+	registrySalt *big.Int,
+	registryCommitment *big.Int,
+	contextHash *big.Int,
 	subjectTag *big.Int,
 	cutoffDateDays uint64,
 ) (string, error) {
@@ -280,18 +290,26 @@ signature_s = "%s"
 	toml += "]\n"
 
 	toml += fmt.Sprintf(`
-[context]
+[request]
 verifier_id_hash = "%s"
 fact_type_hash = "%s"
 issuer_policy_root = "%s"
-subject_tag = "%s"
+registry_salt = "%s"
 cutoff_date_days = "%d"
+
+[context]
+context_hash = "%s"
+registry_commitment = "%s"
+subject_tag = "%s"
 `,
 		verifierIDHash.String(),
 		factTypeHash.String(),
 		policyRoot.String(),
-		subjectTag.String(),
+		registrySalt.String(),
 		cutoffDateDays,
+		contextHash.String(),
+		registryCommitment.String(),
+		subjectTag.String(),
 	)
 
 	return toml, nil

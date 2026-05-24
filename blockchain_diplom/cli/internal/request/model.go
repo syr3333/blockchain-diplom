@@ -26,9 +26,10 @@ type Predicate struct {
 }
 
 type IssuerPolicyRef struct {
-	Root          string        `json:"root"`
-	SnapshotBlock uint64        `json:"snapshot_block"`
-	Issuers       []IssuerEntry `json:"issuers"`
+	Root               string        `json:"root,omitempty"`
+	RegistryCommitment string        `json:"registry_commitment"`
+	SnapshotBlock      uint64        `json:"snapshot_block"`
+	Issuers            []IssuerEntry `json:"issuers,omitempty"`
 }
 
 type IssuerEntry struct {

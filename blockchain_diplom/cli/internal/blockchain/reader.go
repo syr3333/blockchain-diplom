@@ -13,15 +13,14 @@ import (
 )
 
 type VerifiedFact struct {
-	VerifierIDHash [32]byte
-	SubjectTag     [32]byte
-	FactTypeHash   [32]byte
-	VerifiedAt     uint64
-	Exists         bool
+	ContextHash [32]byte
+	SubjectTag  [32]byte
+	VerifiedAt  uint64
+	Exists      bool
 }
 
-// LookupFact reads a VerifiedFact from FactRegistry by (verifierIdHash, subjectTag, factTypeHash)
-func LookupFact(rpcURL, factRegistryAddr string, verifierIDHash, subjectTag, factTypeHash [32]byte) (*VerifiedFact, error) {
+// LookupFact reads a VerifiedFact from FactRegistry by (contextHash, subjectTag).
+func LookupFact(rpcURL, factRegistryAddr string, contextHash, subjectTag [32]byte) (*VerifiedFact, error) {
 	client, err := ethclient.Dial(rpcURL)
 	if err != nil {
 		return nil, fmt.Errorf("connect to node: %w", err)
@@ -29,7 +28,7 @@ func LookupFact(rpcURL, factRegistryAddr string, verifierIDHash, subjectTag, fac
 	defer client.Close()
 
 	contractAddr := common.HexToAddress(factRegistryAddr)
-	data, err := factReaderABI.Pack("getFact", verifierIDHash, subjectTag, factTypeHash)
+	data, err := factReaderABI.Pack("getFact", contextHash, subjectTag)
 	if err != nil {
 		return nil, fmt.Errorf("ABI pack getFact: %w", err)
 	}
@@ -52,27 +51,25 @@ func LookupFact(rpcURL, factRegistryAddr string, verifierIDHash, subjectTag, fac
 	}
 
 	decoded, ok := outputs[0].(struct {
-		VerifierIdHash [32]byte `json:"verifierIdHash"`
-		SubjectTag     [32]byte `json:"subjectTag"`
-		FactTypeHash   [32]byte `json:"factTypeHash"`
-		VerifiedAt     uint64   `json:"verifiedAt"`
-		Exists         bool     `json:"exists"`
+		ContextHash [32]byte `json:"contextHash"`
+		SubjectTag  [32]byte `json:"subjectTag"`
+		VerifiedAt  uint64   `json:"verifiedAt"`
+		Exists      bool     `json:"exists"`
 	})
 	if !ok {
 		return nil, fmt.Errorf("unexpected getFact response type %T", outputs[0])
 	}
 
 	return &VerifiedFact{
-		VerifierIDHash: decoded.VerifierIdHash,
-		SubjectTag:     decoded.SubjectTag,
-		FactTypeHash:   decoded.FactTypeHash,
-		VerifiedAt:     decoded.VerifiedAt,
-		Exists:         decoded.Exists,
+		ContextHash: decoded.ContextHash,
+		SubjectTag:  decoded.SubjectTag,
+		VerifiedAt:  decoded.VerifiedAt,
+		Exists:      decoded.Exists,
 	}, nil
 }
 
 // IsFactValid checks if a fact exists.
-func IsFactValid(rpcURL, factRegistryAddr string, verifierIDHash, subjectTag, factTypeHash [32]byte) (bool, error) {
+func IsFactValid(rpcURL, factRegistryAddr string, contextHash, subjectTag [32]byte) (bool, error) {
 	client, err := ethclient.Dial(rpcURL)
 	if err != nil {
 		return false, fmt.Errorf("connect to node: %w", err)
@@ -81,7 +78,7 @@ func IsFactValid(rpcURL, factRegistryAddr string, verifierIDHash, subjectTag, fa
 
 	contractAddr := common.HexToAddress(factRegistryAddr)
 
-	data, err := factReaderABI.Pack("isFactValid", verifierIDHash, subjectTag, factTypeHash)
+	data, err := factReaderABI.Pack("isFactValid", contextHash, subjectTag)
 	if err != nil {
 		return false, fmt.Errorf("ABI pack isFactValid: %w", err)
 	}
@@ -107,12 +104,11 @@ func IsFactValid(rpcURL, factRegistryAddr string, verifierIDHash, subjectTag, fa
 	return false, nil
 }
 
-// ComputeFactKey computes keccak256(abi.encodePacked(verifierIdHash, subjectTag, factTypeHash))
-func ComputeFactKey(verifierIDHash, subjectTag, factTypeHash [32]byte) common.Hash {
-	packed := make([]byte, 96)
-	copy(packed[0:32], verifierIDHash[:])
+// ComputeFactKey computes keccak256(abi.encodePacked(contextHash, subjectTag)).
+func ComputeFactKey(contextHash, subjectTag [32]byte) common.Hash {
+	packed := make([]byte, 64)
+	copy(packed[0:32], contextHash[:])
 	copy(packed[32:64], subjectTag[:])
-	copy(packed[64:96], factTypeHash[:])
 	return crypto.Keccak256Hash(packed)
 }
 
@@ -122,17 +118,15 @@ func init() {
 	const abiJSON = `[
 		{
 			"inputs": [
-				{"name": "verifierIdHash", "type": "bytes32"},
-				{"name": "subjectTag", "type": "bytes32"},
-				{"name": "factTypeHash", "type": "bytes32"}
+				{"name": "contextHash", "type": "bytes32"},
+				{"name": "subjectTag", "type": "bytes32"}
 			],
 			"name": "getFact",
 			"outputs": [
 				{
 					"components": [
-						{"name": "verifierIdHash", "type": "bytes32"},
+						{"name": "contextHash", "type": "bytes32"},
 						{"name": "subjectTag", "type": "bytes32"},
-						{"name": "factTypeHash", "type": "bytes32"},
 						{"name": "verifiedAt", "type": "uint64"},
 						{"name": "exists", "type": "bool"}
 					],
@@ -145,9 +139,8 @@ func init() {
 		},
 		{
 			"inputs": [
-				{"name": "verifierIdHash", "type": "bytes32"},
-				{"name": "subjectTag", "type": "bytes32"},
-				{"name": "factTypeHash", "type": "bytes32"}
+				{"name": "contextHash", "type": "bytes32"},
+				{"name": "subjectTag", "type": "bytes32"}
 			],
 			"name": "isFactValid",
 			"outputs": [{"name": "", "type": "bool"}],

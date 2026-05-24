@@ -30,7 +30,7 @@ async function main() {
   }
   console.log(`Proof size: ${proofBytes.length} bytes`);
   console.log(`Public inputs count: ${publicInputs.length}`);
-  assert(publicInputs.length === 5, `expected 5 public inputs, got ${publicInputs.length}`);
+  assert(publicInputs.length === 3, `expected 3 public inputs, got ${publicInputs.length}`);
 
   // 1. Test NoirVerifier.verify directly
   const verifierAddr = deployment.contracts.noirVerifier;
@@ -48,29 +48,27 @@ async function main() {
 
   // Use the public inputs as typed args.
   // The circuit public inputs order:
-  // verifier_id_hash, fact_type_hash, issuer_policy_root, subject_tag, cutoff_date_days
+  // context_hash, registry_commitment, subject_tag
   const offset = 0;
-  const verifierIdHash = publicInputs[offset + 0];
-  const factTypeHash = publicInputs[offset + 1];
-  const issuerPolicyRoot = publicInputs[offset + 2];
-  const subjectTag = publicInputs[offset + 3];
+  const contextHash = publicInputs[offset + 0];
+  const registryCommitment = publicInputs[offset + 1];
+  const subjectTag = publicInputs[offset + 2];
 
-  const trustTx = await factRegistry.setIssuerPolicyRoot(issuerPolicyRoot, true);
+  const trustTx = await factRegistry.setTrustedRegistryCommitment(registryCommitment, true);
   const trustReceipt = await trustTx.wait();
-  assert(trustReceipt?.status === 1, "policy root trust transaction failed");
-  console.log("Trusted issuer policy root:", issuerPolicyRoot);
+  assert(trustReceipt?.status === 1, "registry commitment trust transaction failed");
+  console.log("Trusted registry commitment:", registryCommitment);
 
-  const existing = await factRegistry.getFact(verifierIdHash, subjectTag, factTypeHash);
+  const existing = await factRegistry.getFact(contextHash, subjectTag);
   if (existing.exists) {
     console.log("Fact already exists, skipping first submit");
   } else {
     const tx = await factRegistry.submitVerifiedFact(
       proofBytes,
       publicInputs,
-      verifierIdHash,
+      contextHash,
       subjectTag,
-      factTypeHash,
-      issuerPolicyRoot,
+      registryCommitment,
     );
     const receipt = await tx.wait();
     assert(receipt?.status === 1, "submit transaction failed");
@@ -79,14 +77,14 @@ async function main() {
 
   // 3. Lookup fact
   console.log("\n=== Step 3: Lookup fact ===");
-  const fact = await factRegistry.getFact(verifierIdHash, subjectTag, factTypeHash);
+  const fact = await factRegistry.getFact(contextHash, subjectTag);
   assert(fact.exists, "fact was not stored");
   console.log("Fact exists:", fact.exists);
   console.log("  verifiedAt:", new Date(Number(fact.verifiedAt) * 1000).toISOString());
 
   // 4. Check isFactValid
   console.log("\n=== Step 4: Check isFactValid ===");
-  const valid = await factRegistry.isFactValid(verifierIdHash, subjectTag, factTypeHash);
+  const valid = await factRegistry.isFactValid(contextHash, subjectTag);
   assert(valid, "isFactValid returned false");
   console.log("Fact valid:", valid);
 
@@ -96,10 +94,9 @@ async function main() {
     await factRegistry.submitVerifiedFact(
       proofBytes,
       publicInputs,
-      verifierIdHash,
+      contextHash,
       subjectTag,
-      factTypeHash,
-      issuerPolicyRoot,
+      registryCommitment,
     );
     throw new Error("duplicate submit unexpectedly succeeded");
   } catch (e: any) {

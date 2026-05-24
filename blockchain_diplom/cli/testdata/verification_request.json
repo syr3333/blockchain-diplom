@@ -9,19 +9,7 @@
   "fact_type_hash": "0x02cee4c0520193097ae2ed7cb1b1dad60aff4aeab979c2a1ef513d9f43333332",
   "issued_at": "2026-03-30T10:00:00Z",
   "issuer_policy": {
-    "issuers": [
-      {
-        "issuer_id": "did:web:gov.example.ru",
-        "leaf": "0x08def18b56619ac02615390a136336e6eb9e41a2ab98d76ac66306431e78ddf5",
-        "pubkey_hash": "0x08def18b56619ac02615390a136336e6eb9e41a2ab98d76ac66306431e78ddf5"
-      },
-      {
-        "issuer_id": "did:web:bank.example.ru",
-        "leaf": "0x1ae20e07dab445665513536468a05797c8cae78576e7b8384f14b76203024506",
-        "pubkey_hash": "0x1ae20e07dab445665513536468a05797c8cae78576e7b8384f14b76203024506"
-      }
-    ],
-    "root": "0x227dffb9ee9141c6c73a6d60dfaaa24583e8c52b825cf5480aa251079237d5ec",
+    "registry_commitment": "0x1ed073b56fe176e93086d40ce3a9e69a9eab7fb6e5e03c5305407f9416971de1",
     "snapshot_block": 0
   },
   "predicate": {

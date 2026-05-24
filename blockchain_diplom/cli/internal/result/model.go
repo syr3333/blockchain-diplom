@@ -14,8 +14,8 @@ type VerificationResult struct {
 }
 
 type ProofContext struct {
-	SubjectTag   string `json:"subject_tag"`
-	FactTypeHash string `json:"fact_type_hash"`
+	ContextHash string `json:"context_hash"`
+	SubjectTag  string `json:"subject_tag"`
 }
 
 type Decision struct {

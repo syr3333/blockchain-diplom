@@ -7,9 +7,32 @@ import (
 	"github.com/iden3/go-iden3-crypto/poseidon"
 )
 
-// ComputeSubjectTag = Poseidon(holder_secret, verifier_id_hash)
-func ComputeSubjectTag(holderSecret, verifierIDHash *big.Int) (*big.Int, error) {
-	result, err := poseidon.Hash([]*big.Int{holderSecret, verifierIDHash})
+// ComputeRegistryCommitment = Poseidon(issuer_policy_root, registry_salt)
+func ComputeRegistryCommitment(policyRoot, registrySalt *big.Int) (*big.Int, error) {
+	result, err := poseidon.Hash([]*big.Int{policyRoot, registrySalt})
+	if err != nil {
+		return nil, fmt.Errorf("compute registry_commitment: %w", err)
+	}
+	return result, nil
+}
+
+// ComputeContextHash = Poseidon(verifier_id_hash, fact_type_hash, cutoff_date_days, registry_commitment)
+func ComputeContextHash(verifierIDHash, factTypeHash *big.Int, cutoffDateDays uint64, registryCommitment *big.Int) (*big.Int, error) {
+	result, err := poseidon.Hash([]*big.Int{
+		verifierIDHash,
+		factTypeHash,
+		new(big.Int).SetUint64(cutoffDateDays),
+		registryCommitment,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("compute context_hash: %w", err)
+	}
+	return result, nil
+}
+
+// ComputeSubjectTag = Poseidon(holder_secret, context_hash)
+func ComputeSubjectTag(holderSecret, contextHash *big.Int) (*big.Int, error) {
+	result, err := poseidon.Hash([]*big.Int{holderSecret, contextHash})
 	if err != nil {
 		return nil, fmt.Errorf("compute subject_tag: %w", err)
 	}

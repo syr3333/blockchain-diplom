@@ -65,29 +65,28 @@ async function main() {
     for (let i = 0; i < piRaw.length; i += 32) {
       publicInputs.push("0x" + Buffer.from(piRaw.subarray(i, i + 32)).toString("hex"));
     }
-    if (publicInputs.length !== 5) {
-      throw new Error(`expected 5 public inputs, got ${publicInputs.length}`);
+    if (publicInputs.length !== 3) {
+      throw new Error(`expected 3 public inputs, got ${publicInputs.length}`);
     }
 
-    const offset = publicInputs.length - 5;
-    const verifierIdHash = publicInputs[offset + 0];
-    const factTypeHash = publicInputs[offset + 1];
-    const issuerPolicyRoot = publicInputs[offset + 2];
-    const subjectTag = publicInputs[offset + 3];
+    const offset = publicInputs.length - 3;
+    const contextHash = publicInputs[offset + 0];
+    const registryCommitment = publicInputs[offset + 1];
+    const subjectTag = publicInputs[offset + 2];
 
     const factRegistry = await ethers.getContractAt("FactRegistry", factRegAddr);
 
-    const policyTx = await factRegistry.setIssuerPolicyRoot(issuerPolicyRoot, true);
+    const policyTx = await factRegistry.setTrustedRegistryCommitment(registryCommitment, true);
     const policyReceipt = await policyTx.wait();
     if (policyReceipt?.status !== 1) {
-      throw new Error("policy root seed transaction failed");
+      throw new Error("registry commitment seed transaction failed");
     }
-    console.log("Trusted policy root seeded:", issuerPolicyRoot);
-    console.log("setIssuerPolicyRoot gas:", policyReceipt?.gasUsed?.toString());
+    console.log("Trusted registry commitment seeded:", registryCommitment);
+    console.log("setTrustedRegistryCommitment gas:", policyReceipt?.gasUsed?.toString());
 
     const tx = await factRegistry.submitVerifiedFact(
       proofBytes, publicInputs,
-      verifierIdHash, subjectTag, factTypeHash, issuerPolicyRoot,
+      contextHash, subjectTag, registryCommitment,
     );
     const receipt = await tx.wait();
     if (receipt?.status !== 1) {
@@ -95,10 +94,9 @@ async function main() {
     }
     console.log("Proof submitted! TX:", receipt?.hash);
     console.log("submitVerifiedFact gas:", receipt?.gasUsed?.toString());
+    console.log("Context hash:", contextHash);
     console.log("Subject tag:", subjectTag);
-    console.log("Fact type hash:", factTypeHash);
-    console.log("Verifier ID hash:", verifierIdHash);
-    console.log("Issuer policy root:", issuerPolicyRoot);
+    console.log("Registry commitment:", registryCommitment);
   } else {
     console.log("\nNo proof files found — skipping seed. Generate with:");
     console.log("  cd circuits/age_over_18_v1 && nargo execute && bb prove -t evm ...");

@@ -28,8 +28,8 @@ func (r *VerificationRequest) Validate() error {
 			return fmt.Errorf("request has expired")
 		}
 	}
-	if r.IssuerPolicy.Root == "" {
-		return fmt.Errorf("issuer_policy.root is required")
+	if r.IssuerPolicy.RegistryCommitment == "" || !strings.HasPrefix(r.IssuerPolicy.RegistryCommitment, "0x") {
+		return fmt.Errorf("issuer_policy.registry_commitment must be hex (0x...)")
 	}
 	if r.Chain.FactRegistryAddress == "" {
 		return fmt.Errorf("chain.fact_registry_address is required")

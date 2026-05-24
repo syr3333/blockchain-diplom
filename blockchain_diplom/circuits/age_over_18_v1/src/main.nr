@@ -6,7 +6,8 @@
 // Also proves:
 // - Credential signed by trusted Issuer (EdDSA BabyJubJub + Poseidon)
 // - Issuer belongs to trusted set (Merkle inclusion, Poseidon, depth 16)
-// - subject_tag correctly derived
+// - registry commitment and context hash correctly derived
+// - subject_tag correctly derived from hidden request context
 // - Holder secret is bound to the signed credential through a private commitment
 
 use poseidon::poseidon::bn254::hash_2;
@@ -40,23 +41,31 @@ struct IssuerWitness {
     issuer_policy_path_indices: [Field; TREE_DEPTH],
 }
 
-struct VerificationContext {
-    // Public verifier/request context that the contract stores or checks.
+struct RequestWitness {
+    // Private request/registry context. These values are committed into public
+    // hashes but are not returned as public inputs.
     verifier_id_hash: Field,
     fact_type_hash: Field,
     issuer_policy_root: Field,
-    subject_tag: Field,
+    registry_salt: Field,
     cutoff_date_days: Field,
+}
+
+struct PublicContext {
+    context_hash: Field,
+    registry_commitment: Field,
+    subject_tag: Field,
 }
 
 fn main(
     credential: CredentialWitness,
     issuer: IssuerWitness,
-    context: pub VerificationContext,
+    request: RequestWitness,
+    context: pub PublicContext,
 ) {
     // 1. Age predicate: birth_date_days <= cutoff_date_days
     let birth_days_u64 = credential.birth_date_days as u64;
-    let cutoff_days_u64 = context.cutoff_date_days as u64;
+    let cutoff_days_u64 = request.cutoff_date_days as u64;
     assert(birth_days_u64 <= cutoff_days_u64, "Age predicate failed: too young");
 
     // 2. EdDSA signature verification
@@ -89,10 +98,25 @@ fn main(
         issuer.issuer_policy_path,
         issuer.issuer_policy_path_indices,
     );
-    assert(computed_root == context.issuer_policy_root, "Issuer not in policy tree");
+    assert(computed_root == request.issuer_policy_root, "Issuer not in policy tree");
 
-    // 4. subject_tag = Poseidon2(holder_secret, verifier_id_hash)
-    let computed_subject_tag = hash_2([credential.holder_secret, context.verifier_id_hash]);
+    // 4. Bind the private issuer policy root to a public registry commitment.
+    //    registry_commitment = Poseidon2(issuer_policy_root, registry_salt)
+    let computed_registry_commitment = hash_2([request.issuer_policy_root, request.registry_salt]);
+    assert(computed_registry_commitment == context.registry_commitment, "registry_commitment mismatch");
+
+    // 5. Bind private request metadata to a single public context hash.
+    //    context_hash = Poseidon4(verifier_id_hash, fact_type_hash, cutoff_date_days, registry_commitment)
+    let computed_context_hash = hash_4([
+        request.verifier_id_hash,
+        request.fact_type_hash,
+        request.cutoff_date_days,
+        context.registry_commitment,
+    ]);
+    assert(computed_context_hash == context.context_hash, "context_hash mismatch");
+
+    // 6. subject_tag = Poseidon2(holder_secret, context_hash)
+    let computed_subject_tag = hash_2([credential.holder_secret, context.context_hash]);
     assert(computed_subject_tag == context.subject_tag, "subject_tag mismatch");
 }
 

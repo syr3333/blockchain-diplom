@@ -116,7 +116,9 @@ func proveCmd() *cobra.Command {
 			}
 
 			fmt.Printf("Proof generated successfully!\n")
-			fmt.Printf("  Subject tag: %s\n", pkg.SubjectTag)
+			if len(pkg.PublicInputs) >= 3 {
+				fmt.Printf("  Subject tag: %s\n", pkg.PublicInputs[2])
+			}
 			fmt.Printf("  Saved to:    %s\n", outPath)
 			return nil
 		},
@@ -156,28 +158,21 @@ func submitFactCmd() *cobra.Command {
 					return fmt.Errorf("parse public input %d: %w", i, err)
 				}
 			}
-			if len(pkg.PublicInputs) != 5 {
-				return fmt.Errorf("proof package has %d public inputs, want 5", len(pkg.PublicInputs))
+			if len(pkg.PublicInputs) != 3 {
+				return fmt.Errorf("proof package has %d public inputs, want 3", len(pkg.PublicInputs))
 			}
 
-			verifierIDHash, err := blockchain.HexToBytes32(pkg.PublicInputs[0])
+			contextHash, err := blockchain.HexToBytes32(pkg.PublicInputs[0])
 			if err != nil {
-				return fmt.Errorf("parse verifier_id_hash: %w", err)
+				return fmt.Errorf("parse context_hash: %w", err)
 			}
-			subjectTag, err := blockchain.HexToBytes32(pkg.SubjectTag)
+			registryCommitment, err := blockchain.HexToBytes32(pkg.PublicInputs[1])
+			if err != nil {
+				return fmt.Errorf("parse registry_commitment: %w", err)
+			}
+			subjectTag, err := blockchain.HexToBytes32(pkg.PublicInputs[2])
 			if err != nil {
 				return fmt.Errorf("parse subject_tag: %w", err)
-			}
-			if !strings.EqualFold(pkg.SubjectTag, pkg.PublicInputs[3]) {
-				return fmt.Errorf("subject_tag does not match public input 3")
-			}
-			factTypeHash, err := blockchain.HexToBytes32(pkg.PublicInputs[1])
-			if err != nil {
-				return fmt.Errorf("parse fact_type_hash: %w", err)
-			}
-			policyRoot, err := blockchain.HexToBytes32(pkg.PublicInputs[2])
-			if err != nil {
-				return fmt.Errorf("parse issuer_policy_root: %w", err)
 			}
 
 			chainID := new(big.Int)
@@ -193,12 +188,11 @@ func submitFactCmd() *cobra.Command {
 					ChainID:             chainID,
 				},
 				blockchain.SubmitParams{
-					Proof:            proofBytes,
-					PublicInputs:     publicInputs,
-					VerifierIDHash:   verifierIDHash,
-					SubjectTag:       subjectTag,
-					FactTypeHash:     factTypeHash,
-					IssuerPolicyRoot: policyRoot,
+					Proof:              proofBytes,
+					PublicInputs:       publicInputs,
+					ContextHash:        contextHash,
+					SubjectTag:         subjectTag,
+					RegistryCommitment: registryCommitment,
 				},
 			)
 			if err != nil {
@@ -214,7 +208,7 @@ func submitFactCmd() *cobra.Command {
 }
 
 func lookupFactCmd() *cobra.Command {
-	var subjectTagHex, factTypeHashHex, verifierIDHashHex string
+	var subjectTagHex, contextHashHex string
 	cmd := &cobra.Command{
 		Use:   "lookup-fact",
 		Short: "Look up a verified fact on-chain",
@@ -224,25 +218,20 @@ func lookupFactCmd() *cobra.Command {
 				return err
 			}
 
-			verifierIDHash, err := blockchain.HexToBytes32(verifierIDHashHex)
+			contextHash, err := blockchain.HexToBytes32(contextHashHex)
 			if err != nil {
-				return fmt.Errorf("parse verifier_id_hash: %w", err)
+				return fmt.Errorf("parse context_hash: %w", err)
 			}
 			subjectTag, err := blockchain.HexToBytes32(subjectTagHex)
 			if err != nil {
 				return fmt.Errorf("parse subject_tag: %w", err)
 			}
-			factTypeHash, err := blockchain.HexToBytes32(factTypeHashHex)
-			if err != nil {
-				return fmt.Errorf("parse fact_type_hash: %w", err)
-			}
 
 			fact, err := blockchain.LookupFact(
 				cfg.EthereumRPCURL,
 				cfg.FactRegistryAddress,
-				verifierIDHash,
+				contextHash,
 				subjectTag,
-				factTypeHash,
 			)
 			if err != nil {
 				return fmt.Errorf("lookup fact: %w", err)
@@ -259,13 +248,13 @@ func lookupFactCmd() *cobra.Command {
 			res := result.VerificationResult{
 				Version:          "1.0",
 				RequestID:        "",
-				ServiceID:        verifierIDHashHex,
+				ServiceID:        contextHashHex,
 				Verified:         true,
 				VerificationMode: "onchain_lookup",
 				VerifiedAt:       time.Now().UTC().Format(time.RFC3339),
 				ProofContext: result.ProofContext{
-					SubjectTag:   subjectTagHex,
-					FactTypeHash: factTypeHashHex,
+					ContextHash: contextHashHex,
+					SubjectTag:  subjectTagHex,
 				},
 				Decision: result.Decision{
 					Type:       "fact_verification",
@@ -286,12 +275,10 @@ func lookupFactCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&verifierIDHashHex, "verifier-id-hash", "", "Verifier ID hash (0x...)")
+	cmd.Flags().StringVar(&contextHashHex, "context-hash", "", "Context hash (0x...)")
 	cmd.Flags().StringVar(&subjectTagHex, "subject-tag", "", "Subject tag (0x...)")
-	cmd.Flags().StringVar(&factTypeHashHex, "fact-type-hash", "", "Fact type hash (0x...)")
 	cmd.MarkFlagRequired("subject-tag")
-	cmd.MarkFlagRequired("fact-type-hash")
-	cmd.MarkFlagRequired("verifier-id-hash")
+	cmd.MarkFlagRequired("context-hash")
 	return cmd
 }
 
@@ -323,9 +310,8 @@ func verifyServiceFlowCmd() *cobra.Command {
 			}
 
 			lookupCmd := lookupFactCmd()
-			lookupCmd.Flags().Set("subject-tag", pkg.SubjectTag)
-			lookupCmd.Flags().Set("fact-type-hash", pkg.PublicInputs[1])
-			lookupCmd.Flags().Set("verifier-id-hash", pkg.PublicInputs[0])
+			lookupCmd.Flags().Set("context-hash", pkg.PublicInputs[0])
+			lookupCmd.Flags().Set("subject-tag", pkg.PublicInputs[2])
 			if err := lookupCmd.RunE(cmd, args); err != nil {
 				return fmt.Errorf("lookup-fact failed: %w", err)
 			}

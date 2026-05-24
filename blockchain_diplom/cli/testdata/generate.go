@@ -17,6 +17,7 @@ import (
 
 const sampleIssuerPrivateKeyHex = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
 const sampleBankIssuerPrivateKeyHex = "1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100"
+const registrySaltHex = "4444444444444444444444444444444444444444444444444444444444444444"
 
 func main() {
 	// 1. Build a deterministic issuer EdDSA keypair for reproducible fixtures.
@@ -234,6 +235,19 @@ func main() {
 	multiRoot := multiLevels[depth][0]
 	fmt.Printf("Multi-issuer Merkle root: 0x%064x\n", multiRoot)
 
+	registrySalt := new(big.Int).Mod(hexToBig(registrySaltHex), bnPrime)
+	registryCommitment, _ := poseidon.Hash([]*big.Int{multiRoot, registrySalt})
+	contextHash, _ := poseidon.Hash([]*big.Int{
+		verifierIDHash,
+		factTypeHash,
+		new(big.Int).SetUint64(cutoffDateDays),
+		registryCommitment,
+	})
+	subjectTag, _ = poseidon.Hash([]*big.Int{holderSecret, contextHash})
+	fmt.Printf("Registry commitment: 0x%064x\n", registryCommitment)
+	fmt.Printf("Context hash: 0x%064x\n", contextHash)
+	fmt.Printf("Context-scoped subject tag: 0x%064x\n", subjectTag)
+
 	multiMerklePath := make([]string, depth)
 	multiMerkleIndexBits := make([]int, depth)
 	idx = 0
@@ -296,12 +310,14 @@ func main() {
 	}
 
 	multiIssuerPolicy := map[string]interface{}{
-		"version":   "1.0",
-		"policy_id": "age-trusted-issuers-2026-03",
-		"hash_alg":  "poseidon",
-		"depth":     depth,
-		"root":      fmt.Sprintf("0x%064x", multiRoot),
-		"issuers":   multiIssuerEntries,
+		"version":             "1.0",
+		"policy_id":           "age-trusted-issuers-2026-03",
+		"hash_alg":            "poseidon",
+		"depth":               depth,
+		"root":                fmt.Sprintf("0x%064x", multiRoot),
+		"commitment_salt":     fmt.Sprintf("0x%064x", registrySalt),
+		"registry_commitment": fmt.Sprintf("0x%064x", registryCommitment),
+		"issuers":             multiIssuerEntries,
 	}
 	must(writeJSON("issuer_policy.json", multiIssuerPolicy))
 	must(writeJSON("issuer_policy_multi.json", multiIssuerPolicy))
@@ -324,9 +340,8 @@ func main() {
 			"cutoff_date_days": cutoffDateDays,
 		},
 		"issuer_policy": map[string]interface{}{
-			"root":           fmt.Sprintf("0x%064x", multiRoot),
-			"snapshot_block": 0,
-			"issuers":        multiIssuerEntries,
+			"registry_commitment": fmt.Sprintf("0x%064x", registryCommitment),
+			"snapshot_block":      0,
 		},
 		"chain": map[string]interface{}{
 			"chain_id":              31337,
@@ -379,18 +394,26 @@ signature_s = "%s"
 	proverToml += "]\n"
 
 	proverToml += fmt.Sprintf(`
-[context]
+[request]
 verifier_id_hash = "%s"
 fact_type_hash = "%s"
 issuer_policy_root = "%s"
-subject_tag = "%s"
+registry_salt = "%s"
 cutoff_date_days = "%d"
+
+[context]
+context_hash = "%s"
+registry_commitment = "%s"
+subject_tag = "%s"
 `,
 		verifierIDHash.String(),
 		factTypeHash.String(),
 		multiRoot.String(),
-		subjectTag.String(),
+		registrySalt.String(),
 		cutoffDateDays,
+		contextHash.String(),
+		registryCommitment.String(),
+		subjectTag.String(),
 	)
 
 	must(os.WriteFile("../../circuits/age_over_18_v1/Prover.toml", []byte(proverToml), 0644))

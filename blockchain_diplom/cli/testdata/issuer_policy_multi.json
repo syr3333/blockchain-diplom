@@ -1,4 +1,5 @@
 {
+  "commitment_salt": "0x13dff5d16312a41a8bf3fe8dc2c2ebe71c105bfbca8ad3b300624eb054444443",
   "depth": 16,
   "hash_alg": "poseidon",
   "issuers": [
@@ -14,6 +15,7 @@
     }
   ],
   "policy_id": "age-trusted-issuers-2026-03",
+  "registry_commitment": "0x1ed073b56fe176e93086d40ce3a9e69a9eab7fb6e5e03c5305407f9416971de1",
   "root": "0x227dffb9ee9141c6c73a6d60dfaaa24583e8c52b825cf5480aa251079237d5ec",
   "version": "1.0"
 }
